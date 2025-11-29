@@ -752,47 +752,64 @@ def run(
             console.print("[yellow]Command cancelled.[/yellow]")
             sys.exit(0)
     
-    # Execute command
+    # Execute command with real-time streaming
     console.print("[yellow]Executing...[/yellow]\n")
+    console.print(f"[dim]Command: {command}[/dim]\n")
+    
+    # Prepare logging
+    log_dir = config.log_dir
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     
     try:
-        result = subprocess.run(
+        # Use Popen to stream output in real-time
+        process = subprocess.Popen(
             command,
             shell=True,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,  # Combine stderr with stdout
             text=True,
-            timeout=300,  # 5 minute timeout
+            bufsize=1,  # Line buffered
+            universal_newlines=True,
         )
         
-        # Log the execution
-        log_dir = config.log_dir
-        log_dir.mkdir(parents=True, exist_ok=True)
+        # Capture output while streaming to terminal
+        output_lines = []
         
+        # Stream output in real-time (line by line)
+        for line in process.stdout:
+            # Write to terminal immediately
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            # Also capture for logging
+            output_lines.append(line)
+        
+        # Wait for process to complete
+        exit_code = process.wait(timeout=300)
+        
+        # Combine all output
+        output_text = ''.join(output_lines)
+        
+        # Log the execution
         log_entry = {
             "timestamp": datetime.now().isoformat(),
             "date": datetime.now().strftime("%Y-%m-%d"),
             "command": command,
             "description": description,
-            "exit_code": result.returncode,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-            "output": result.stdout + result.stderr,
+            "exit_code": exit_code,
+            "stdout": output_text,
+            "stderr": "",  # Combined with stdout above
+            "output": output_text,
         }
         
-        log_file = log_dir / f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         with open(log_file, "w") as f:
             json.dump(log_entry, f, indent=2)
         
         # Mark suggestion as executed
         store.mark_executed(suggestion_id)
         
-        # Display output
-        if result.stdout:
-            console.print(Panel(result.stdout, title="Output", border_style="green"))
-        if result.stderr:
-            console.print(Panel(result.stderr, title="Errors", border_style="red"))
-        
-        console.print(f"\n[bold green]✓ Command executed (exit code: {result.returncode})[/bold green]")
+        # Show completion status
+        console.print(f"\n[bold green]✓ Command executed (exit code: {exit_code})[/bold green]")
         console.print(f"[dim]Logged to: {log_file}[/dim]")
         
     except subprocess.TimeoutExpired:
