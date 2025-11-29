@@ -26,7 +26,7 @@ from kaalsec.reports import ReportGenerator
 from kaalsec.tools import ToolDiscovery
 from kaalsec.shell_integration import ShellIntegration
 
-app = typer.Typer(help="KaalSec - Ethical AI Copilot for Kali Linux")
+app = typer.Typer(help="KaalSec - Ethical AI Copilot for Kali Linux", no_args_is_help=False)
 console = Console()
 
 
@@ -71,8 +71,12 @@ def main(
                 skip_next = True
             continue
         if arg in known_commands:
-            # Shouldn't happen if no subcommand, but be safe
-            continue
+            # This shouldn't happen if no subcommand was invoked, but if it does,
+            # it means Typer didn't recognize it as a subcommand, so treat it as part of question
+            # Actually, if it's a known command, we should skip it to avoid confusion
+            # But wait - if ctx.invoked_subcommand is None, then these shouldn't be commands
+            # So we can include them in the question
+            pass  # Include all words as part of the question
         question_words.append(arg)
     
     # If no question provided, show help
@@ -93,7 +97,47 @@ def main(
 
 def run_cli():
     """Entry point for CLI"""
-    app()
+    import sys
+    from click.exceptions import UsageError
+    
+    try:
+        app()
+    except typer.Exit:
+        # Typer exit (normal exit, e.g., --help)
+        raise
+    except (UsageError, typer.BadParameter) as e:
+        # If Typer/Click raises an error about unknown command or bad arguments,
+        # try to handle the entire command line as a question
+        error_str = str(e).lower()
+        if any(phrase in error_str for phrase in ["no such command", "got unexpected extra arguments", "missing argument"]):
+            # Try to treat the entire command line as a question
+            args = sys.argv[1:]
+            if args:
+                # Filter out options and help flags
+                question_words = []
+                skip_next = False
+                for i, arg in enumerate(args):
+                    if skip_next:
+                        skip_next = False
+                        continue
+                    if arg in ['--help', '-h', 'help']:
+                        # Show help instead
+                        app()
+                        return
+                    if arg.startswith('-'):
+                        if '=' in arg:
+                            continue
+                        if i + 1 < len(args) and not args[i + 1].startswith('-'):
+                            skip_next = True
+                        continue
+                    question_words.append(arg)
+                
+                if question_words:
+                    question = " ".join(question_words)
+                    _ask_question(question, show_banner=True)
+                    return
+        # Re-raise if we can't handle it
+        raise
 
 
 def _ask_question(question: str, show_banner: bool = True):
@@ -135,29 +179,89 @@ Avoid placeholders where possible (use realistic examples)."""
 
 @app.command()
 def ask(
-    *question_words: str,
+    ctx: Context,
     show_banner: bool = typer.Option(True, "--banner/--no-banner", help="Show legal banner"),
 ):
-    """Ask KaalSec a question about ethical security testing"""
+    """Ask KaalSec a question about ethical security testing
+    
+    You can provide the question as multiple words without quotes:
+      kaalsec ask how do i scan my local network
+    """
+    # Get all remaining arguments from sys.argv
+    import sys
+    args = sys.argv[1:]  # Skip script name
+    
+    # Find where 'ask' appears and get everything after it
+    question_words = []
+    found_ask = False
+    skip_next = False
+    
+    for i, arg in enumerate(args):
+        if skip_next:
+            skip_next = False
+            continue
+        if arg == 'ask':
+            found_ask = True
+            continue
+        if found_ask:
+            if arg.startswith('-'):
+                # Stop at options
+                if arg == '--banner' or arg == '--no-banner':
+                    continue
+                break
+            question_words.append(arg)
+    
     if not question_words:
         console.print("[bold red]Error:[/bold red] Question is required")
         console.print("Usage: kaalsec ask <your question>")
+        console.print("Example: kaalsec ask how do i scan my local network")
         sys.exit(1)
+    
     question = " ".join(question_words)
     _ask_question(question, show_banner)
 
 
 @app.command()
 def explain(
-    *command_words: str,
+    ctx: Context,
     file: Optional[Path] = typer.Option(None, "-f", "--file", help="File containing command/output to explain"),
 ):
-    """Explain what a command does, its flags, risks, and safer alternatives"""
+    """Explain what a command does, its flags, risks, and safer alternatives
+    
+    You can provide the command as multiple words without quotes:
+      kaalsec explain nmap -sCV -p 22,80,443 target
+    """
     config = Config()
     policy = PolicyFilter(
         red_team_mode=config.get("policy.red_team_mode", False),
         anonymise_ips=config.get("policy.anonymise_ips", False),
     )
+    
+    # Get all remaining arguments from sys.argv
+    import sys
+    args = sys.argv[1:]  # Skip script name
+    
+    # Find where 'explain' appears and get everything after it
+    command_words = []
+    found_explain = False
+    skip_next = False
+    
+    for i, arg in enumerate(args):
+        if skip_next:
+            skip_next = False
+            continue
+        if arg == 'explain':
+            found_explain = True
+            continue
+        if found_explain:
+            if arg.startswith('-'):
+                # Stop at options
+                if arg == '-f' or arg == '--file':
+                    if i + 1 < len(args):
+                        skip_next = True
+                    continue
+                break
+            command_words.append(arg)
     
     command = " ".join(command_words) if command_words else None
     
@@ -205,13 +309,44 @@ Avoid placeholders where possible (use realistic examples)."""
 
 @app.command()
 def suggest(
-    *task_words: str,
+    ctx: Context,
     tool: Optional[str] = typer.Option(None, "--tool", help="Specific tool to use (e.g., nmap, nikto)"),
 ):
-    """Suggest safe, accurate commands for a security testing task"""
+    """Suggest safe, accurate commands for a security testing task
+    
+    You can provide the task as multiple words without quotes:
+      kaalsec suggest a command to scan my local network
+    """
+    # Get all remaining arguments from sys.argv
+    import sys
+    args = sys.argv[1:]  # Skip script name
+    
+    # Find where 'suggest' appears and get everything after it
+    task_words = []
+    found_suggest = False
+    skip_next = False
+    
+    for i, arg in enumerate(args):
+        if skip_next:
+            skip_next = False
+            continue
+        if arg == 'suggest':
+            found_suggest = True
+            continue
+        if found_suggest:
+            if arg.startswith('-'):
+                # Stop at options
+                if arg == '--tool' or arg.startswith('--tool='):
+                    if '=' not in arg and i + 1 < len(args):
+                        skip_next = True
+                    continue
+                break
+            task_words.append(arg)
+    
     if not task_words:
         console.print("[bold red]Error:[/bold red] Task description is required")
         console.print("Usage: kaalsec suggest <task description>")
+        console.print("Example: kaalsec suggest a command to scan my local network")
         sys.exit(1)
     
     task = " ".join(task_words)
