@@ -5,6 +5,42 @@ echo "     Installing KaalSec — Ethical AI       "
 echo "=========================================="
 sleep 1
 
+# Detect shell and set config file
+detect_shell_config() {
+    local shell_name=$(basename "$SHELL" 2>/dev/null || echo "bash")
+    local config_file=""
+    
+    case "$shell_name" in
+        zsh)
+            config_file="$HOME/.zshrc"
+            ;;
+        bash|sh)
+            config_file="$HOME/.bashrc"
+            ;;
+        *)
+            # Default to bashrc, but also check zshrc
+            if [ -f "$HOME/.zshrc" ]; then
+                config_file="$HOME/.zshrc"
+            else
+                config_file="$HOME/.bashrc"
+            fi
+            ;;
+    esac
+    
+    # If config file doesn't exist, create it
+    if [ ! -f "$config_file" ]; then
+        touch "$config_file"
+    fi
+    
+    echo "$config_file"
+}
+
+# Get the shell config file
+SHELL_CONFIG=$(detect_shell_config)
+SHELL_NAME=$(basename "$SHELL" 2>/dev/null || echo "bash")
+echo "[Shell detected: $SHELL_NAME, using config: $SHELL_CONFIG]"
+echo ""
+
 # Ensure system is up to date
 echo "[1/9] Updating apt packages..."
 sudo apt update -y
@@ -37,14 +73,14 @@ ollama pull qwen2.5 || echo "Warning: Could not pull model. You can run 'ollama 
 
 # Performance tuning for VMs (optional)
 echo "[3.6/9] Setting up performance tuning (optional)..."
-if ! grep -q "OLLAMA_NUM_THREADS" ~/.bashrc 2>/dev/null; then
-    echo "" >> ~/.bashrc
-    echo "# KaalSec performance tuning for Ollama" >> ~/.bashrc
-    echo "export OLLAMA_NUM_THREADS=\$(nproc)" >> ~/.bashrc
-    echo "export OLLAMA_MAX_LOADED_MODELS=1" >> ~/.bashrc
-    echo "Performance tuning added to ~/.bashrc (reload with: source ~/.bashrc)"
+if ! grep -q "OLLAMA_NUM_THREADS" "$SHELL_CONFIG" 2>/dev/null; then
+    echo "" >> "$SHELL_CONFIG"
+    echo "# KaalSec performance tuning for Ollama" >> "$SHELL_CONFIG"
+    echo "export OLLAMA_NUM_THREADS=\$(nproc)" >> "$SHELL_CONFIG"
+    echo "export OLLAMA_MAX_LOADED_MODELS=1" >> "$SHELL_CONFIG"
+    echo "Performance tuning added to $SHELL_CONFIG (reload with: source $SHELL_CONFIG)"
 else
-    echo "Performance tuning already configured in ~/.bashrc"
+    echo "Performance tuning already configured in $SHELL_CONFIG"
 fi
 
 # Create install directory
@@ -185,24 +221,24 @@ else
         if sudo ln -sf "$VENV_BIN" /usr/local/bin/kaalsec 2>/dev/null; then
             echo "✓ Global kaalsec command created at /usr/local/bin/kaalsec"
         else
-            # Method 2: Add alias to ~/.bashrc (no sudo needed)
-            echo "Creating alias in ~/.bashrc..."
-            if ! grep -q "alias kaalsec=" ~/.bashrc 2>/dev/null; then
-                echo "" >> ~/.bashrc
-                echo "# KaalSec alias" >> ~/.bashrc
-                echo "alias kaalsec=\"$VENV_BIN\"" >> ~/.bashrc
-                echo "✓ Alias added to ~/.bashrc"
-                echo "  Run 'source ~/.bashrc' or restart terminal to use 'kaalsec' command"
+            # Method 2: Add alias to shell config (no sudo needed)
+            echo "Creating alias in $SHELL_CONFIG..."
+            if ! grep -q "alias kaalsec=" "$SHELL_CONFIG" 2>/dev/null; then
+                echo "" >> "$SHELL_CONFIG"
+                echo "# KaalSec alias" >> "$SHELL_CONFIG"
+                echo "alias kaalsec=\"$VENV_BIN\"" >> "$SHELL_CONFIG"
+                echo "✓ Alias added to $SHELL_CONFIG"
+                echo "  Run 'source $SHELL_CONFIG' or restart terminal to use 'kaalsec' command"
             else
-                echo "✓ Alias already exists in ~/.bashrc"
+                echo "✓ Alias already exists in $SHELL_CONFIG"
             fi
             
             # Method 3: Also add venv bin to PATH as backup
-            if ! grep -q "$INSTALL_DIR/.venv/bin" ~/.bashrc 2>/dev/null; then
-                echo "" >> ~/.bashrc
-                echo "# KaalSec PATH" >> ~/.bashrc
-                echo "export PATH=\"$INSTALL_DIR/.venv/bin:\$PATH\"" >> ~/.bashrc
-                echo "✓ Added KaalSec to PATH in ~/.bashrc"
+            if ! grep -q "$INSTALL_DIR/.venv/bin" "$SHELL_CONFIG" 2>/dev/null; then
+                echo "" >> "$SHELL_CONFIG"
+                echo "# KaalSec PATH" >> "$SHELL_CONFIG"
+                echo "export PATH=\"$INSTALL_DIR/.venv/bin:\$PATH\"" >> "$SHELL_CONFIG"
+                echo "✓ Added KaalSec to PATH in $SHELL_CONFIG"
             fi
         fi
     else
@@ -276,7 +312,7 @@ else
         echo "  ⚠ kaalsec command: Not found"
     fi
     echo "     To use: source $INSTALL_DIR/.venv/bin/activate"
-    echo "     Or add alias to ~/.bashrc: alias kaalsec='$VENV_KAALSEC'"
+    echo "     Or add alias to $SHELL_CONFIG: alias kaalsec='$VENV_KAALSEC'"
 fi
 
 # Verify file locations
@@ -292,7 +328,7 @@ echo "✔ KaalSec Installed Successfully!"
 echo
 echo "Ollama Configuration:"
 echo "  ✓ Default model: qwen2.5"
-echo "  ✓ Performance tuning: Added to ~/.bashrc"
+echo "  ✓ Performance tuning: Added to $SHELL_CONFIG"
 echo
 echo "Quick Start:"
 if command -v kaalsec &> /dev/null; then
@@ -306,7 +342,7 @@ fi
 echo
 echo "Important Notes:"
 echo "  • Make sure Ollama is running: ollama serve"
-echo "  • Reload shell to use kaalsec command: source ~/.bashrc (or restart terminal)"
+echo "  • Reload shell to use kaalsec command: source $SHELL_CONFIG (or restart terminal)"
 echo "  • To use different model: ollama pull <model> && nano ~/.kaalsec/config.toml"
 echo "  • Enable terminal integration: kaalsec integrate"
 echo "  • List available Kali tools: kaalsec tools"
@@ -315,8 +351,13 @@ echo "To use KaalSec now (without restarting terminal):"
 if command -v kaalsec &> /dev/null; then
     echo "  kaalsec ask \"test question\""
 else
-    echo "  source ~/.bashrc"
+    echo "  source $SHELL_CONFIG"
     echo "  kaalsec ask \"test question\""
 fi
+echo ""
+echo "Shell Configuration:"
+echo "  • Detected shell: $SHELL_NAME"
+echo "  • Config file: $SHELL_CONFIG"
+echo "  • After reloading config, 'kaalsec' command will work from anywhere"
 echo "=========================================="
 
