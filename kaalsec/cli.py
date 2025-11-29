@@ -182,6 +182,51 @@ def run_cli():
                         # If that fails, fall through to question handling
                         pass
                 elif args[0] == 'ask':
+                    # Parse question from args manually and call _ask_question
+                    try:
+                        question_words = []
+                        skip_next = False
+                        for i, arg in enumerate(args[1:], 1):  # Skip 'ask'
+                            if skip_next:
+                                skip_next = False
+                                continue
+                            if arg.startswith('-'):
+                                if arg == '--banner' or arg == '--no-banner':
+                                    continue
+                                break
+                            question_words.append(arg)
+                        
+                        if question_words:
+                            _ask_question(" ".join(question_words), show_banner=True)
+                            return
+                    except Exception as e:
+                        pass
+                elif args[0] == 'explain':
+                    # Parse command from args manually and call explain logic
+                    try:
+                        command_words = []
+                        file_path = None
+                        skip_next = False
+                        for i, arg in enumerate(args[1:], 1):  # Skip 'explain'
+                            if skip_next:
+                                skip_next = False
+                                continue
+                            if arg.startswith('-'):
+                                if arg == '-f' or arg == '--file':
+                                    if i + 1 < len(args):
+                                        file_path = Path(args[i + 1])
+                                        skip_next = True
+                                    continue
+                                break
+                            command_words.append(arg)
+                        
+                        if command_words or file_path:
+                            # Call explain logic directly
+                            _perform_explain(" ".join(command_words) if command_words else None, file_path)
+                            return
+                    except Exception as e:
+                        pass
+                elif args[0] == 'ask':
                     try:
                         from typer import Context
                         mock_ctx = Context(None, None, None, None)
@@ -343,7 +388,11 @@ def explain(
             command_words.append(arg)
     
     command = " ".join(command_words) if command_words else None
-    
+    _perform_explain(command, file)
+
+
+def _perform_explain(command: Optional[str], file: Optional[Path]):
+    """Internal function to perform explain logic"""
     if not command and not file:
         console.print("[bold red]Error:[/bold red] Provide either a command or --file option")
         sys.exit(1)
@@ -355,6 +404,12 @@ def explain(
             sys.exit(1)
         with open(file, "r") as f:
             content = f.read()
+    
+    config = Config()
+    policy = PolicyFilter(
+        red_team_mode=config.get("policy.red_team_mode", False),
+        anonymise_ips=config.get("policy.anonymise_ips", False),
+    )
     
     try:
         backend_config = config.get_backend_config()
