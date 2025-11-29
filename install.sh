@@ -210,7 +210,9 @@ fi
 
 # Make kaalsec command available globally
 echo "[8.5/9] Setting up global kaalsec command..."
-VENV_BIN="$INSTALL_DIR/.venv/bin/kaalsec"
+# Expand ~ to $HOME for proper shell compatibility
+INSTALL_DIR_EXPANDED=$(echo "$INSTALL_DIR" | sed "s|^~|$HOME|")
+VENV_BIN="$INSTALL_DIR_EXPANDED/.venv/bin/kaalsec"
 
 # Check if kaalsec is already in PATH
 if command -v kaalsec &> /dev/null; then
@@ -226,7 +228,9 @@ else
             if ! grep -q "alias kaalsec=" "$SHELL_CONFIG" 2>/dev/null; then
                 echo "" >> "$SHELL_CONFIG"
                 echo "# KaalSec alias" >> "$SHELL_CONFIG"
-                echo "alias kaalsec=\"$VENV_BIN\"" >> "$SHELL_CONFIG"
+                # Use $HOME instead of ~ for proper expansion in zsh/bash
+                VENV_BIN_ALIAS=$(echo "$VENV_BIN" | sed "s|^$HOME|\$HOME|")
+                echo "alias kaalsec=\"$VENV_BIN_ALIAS\"" >> "$SHELL_CONFIG"
                 echo "✓ Alias added to $SHELL_CONFIG"
                 echo "  Run 'source $SHELL_CONFIG' or restart terminal to use 'kaalsec' command"
             else
@@ -234,10 +238,12 @@ else
             fi
             
             # Method 3: Also add venv bin to PATH as backup
-            if ! grep -q "$INSTALL_DIR/.venv/bin" "$SHELL_CONFIG" 2>/dev/null; then
+            if ! grep -q "$INSTALL_DIR_EXPANDED/.venv/bin" "$SHELL_CONFIG" 2>/dev/null; then
                 echo "" >> "$SHELL_CONFIG"
                 echo "# KaalSec PATH" >> "$SHELL_CONFIG"
-                echo "export PATH=\"$INSTALL_DIR/.venv/bin:\$PATH\"" >> "$SHELL_CONFIG"
+                # Use $HOME instead of ~ for proper expansion
+                PATH_DIR=$(echo "$INSTALL_DIR_EXPANDED/.venv/bin" | sed "s|^$HOME|\$HOME|")
+                echo "export PATH=\"$PATH_DIR:\$PATH\"" >> "$SHELL_CONFIG"
                 echo "✓ Added KaalSec to PATH in $SHELL_CONFIG"
             fi
         fi
@@ -302,17 +308,19 @@ if command -v kaalsec &> /dev/null; then
     fi
 else
     # Test using venv path directly
-    VENV_KAALSEC="$INSTALL_DIR/.venv/bin/kaalsec"
+    INSTALL_DIR_EXPANDED_VERIFY=$(echo "$INSTALL_DIR" | sed "s|^~|$HOME|")
+    VENV_KAALSEC="$INSTALL_DIR_EXPANDED_VERIFY/.venv/bin/kaalsec"
     if [ -f "$VENV_KAALSEC" ]; then
         echo "  ✓ kaalsec binary: $VENV_KAALSEC"
-        if source "$INSTALL_DIR/.venv/bin/activate" && kaalsec version &>/dev/null; then
+        if source "$INSTALL_DIR_EXPANDED_VERIFY/.venv/bin/activate" && kaalsec version &>/dev/null; then
             echo "  ✓ kaalsec command verified working (in venv)"
         fi
     else
         echo "  ⚠ kaalsec command: Not found"
     fi
-    echo "     To use: source $INSTALL_DIR/.venv/bin/activate"
-    echo "     Or add alias to $SHELL_CONFIG: alias kaalsec='$VENV_KAALSEC'"
+    echo "     To use: source $INSTALL_DIR_EXPANDED_VERIFY/.venv/bin/activate"
+    VENV_KAALSEC_ALIAS=$(echo "$VENV_KAALSEC" | sed "s|^$HOME|\$HOME|")
+    echo "     Or reload shell config: source $SHELL_CONFIG"
 fi
 
 # Verify file locations
