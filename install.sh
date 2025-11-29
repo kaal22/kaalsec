@@ -174,19 +174,36 @@ fi
 
 # Make kaalsec command available globally
 echo "[8.5/9] Setting up global kaalsec command..."
+VENV_BIN="$INSTALL_DIR/.venv/bin/kaalsec"
+
 # Check if kaalsec is already in PATH
 if command -v kaalsec &> /dev/null; then
     echo "✓ kaalsec command already available"
 else
-    # Try to create symlink in /usr/local/bin (requires sudo)
-    VENV_BIN="$INSTALL_DIR/.venv/bin/kaalsec"
     if [ -f "$VENV_BIN" ]; then
+        # Try method 1: Create symlink in /usr/local/bin (requires sudo)
         if sudo ln -sf "$VENV_BIN" /usr/local/bin/kaalsec 2>/dev/null; then
             echo "✓ Global kaalsec command created at /usr/local/bin/kaalsec"
         else
-            echo "Note: Could not create global symlink (may need sudo)."
-            echo "You can activate the venv and run: source $INSTALL_DIR/.venv/bin/activate"
-            echo "Or add to your ~/.bashrc: alias kaalsec='$VENV_BIN'"
+            # Method 2: Add alias to ~/.bashrc (no sudo needed)
+            echo "Creating alias in ~/.bashrc..."
+            if ! grep -q "alias kaalsec=" ~/.bashrc 2>/dev/null; then
+                echo "" >> ~/.bashrc
+                echo "# KaalSec alias" >> ~/.bashrc
+                echo "alias kaalsec=\"$VENV_BIN\"" >> ~/.bashrc
+                echo "✓ Alias added to ~/.bashrc"
+                echo "  Run 'source ~/.bashrc' or restart terminal to use 'kaalsec' command"
+            else
+                echo "✓ Alias already exists in ~/.bashrc"
+            fi
+            
+            # Method 3: Also add venv bin to PATH as backup
+            if ! grep -q "$INSTALL_DIR/.venv/bin" ~/.bashrc 2>/dev/null; then
+                echo "" >> ~/.bashrc
+                echo "# KaalSec PATH" >> ~/.bashrc
+                echo "export PATH=\"$INSTALL_DIR/.venv/bin:\$PATH\"" >> ~/.bashrc
+                echo "✓ Added KaalSec to PATH in ~/.bashrc"
+            fi
         fi
     else
         echo "Warning: kaalsec binary not found at $VENV_BIN"
@@ -289,9 +306,17 @@ fi
 echo
 echo "Important Notes:"
 echo "  • Make sure Ollama is running: ollama serve"
+echo "  • Reload shell to use kaalsec command: source ~/.bashrc (or restart terminal)"
 echo "  • To use different model: ollama pull <model> && nano ~/.kaalsec/config.toml"
-echo "  • Reload shell config: source ~/.bashrc (for performance tuning)"
 echo "  • Enable terminal integration: kaalsec integrate"
 echo "  • List available Kali tools: kaalsec tools"
+echo ""
+echo "To use KaalSec now (without restarting terminal):"
+if command -v kaalsec &> /dev/null; then
+    echo "  kaalsec ask \"test question\""
+else
+    echo "  source ~/.bashrc"
+    echo "  kaalsec ask \"test question\""
+fi
 echo "=========================================="
 
