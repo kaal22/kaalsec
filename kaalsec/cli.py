@@ -694,6 +694,51 @@ def update(
             console.print(result.stdout)
             console.print()
         
+        # Check for local changes before pulling
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=install_dir,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        
+        has_local_changes = bool(result.stdout.strip())
+        
+        if has_local_changes:
+            console.print("[yellow]⚠️  Local changes detected in repository[/yellow]")
+            console.print("Files with changes:")
+            for line in result.stdout.strip().split('\n'):
+                if line.strip():
+                    console.print(f"  {line}")
+            console.print()
+            
+            # Try to stash changes automatically
+            console.print("[yellow]Stashing local changes...[/yellow]")
+            stash_result = subprocess.run(
+                ["git", "stash", "push", "-m", "KaalSec auto-stash before update"],
+                cwd=install_dir,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            
+            if stash_result.returncode == 0:
+                console.print("[bold green]✓ Local changes stashed[/bold green]")
+                console.print("[dim]You can restore them later with: git stash pop[/dim]\n")
+            else:
+                console.print("[bold yellow]⚠️  Could not stash changes automatically[/bold yellow]")
+                console.print("[bold]Please resolve manually:[/bold]")
+                console.print("  1. Commit your changes: git add . && git commit -m 'Your changes'")
+                console.print("  2. Or stash them: git stash")
+                console.print("  3. Then run: kaalsec update")
+                console.print("\nOr update manually:")
+                console.print("  cd ~/kaalsec")
+                console.print("  git pull")
+                console.print("  source .venv/bin/activate")
+                console.print("  pip install -e .")
+                sys.exit(1)
+        
         # Pull latest changes
         console.print("[yellow]Pulling latest changes...[/yellow]")
         result = subprocess.run(
@@ -707,6 +752,21 @@ def update(
         if result.returncode != 0:
             console.print(f"[bold red]Error:[/bold red] Failed to pull updates")
             console.print(result.stderr)
+            
+            # If we stashed, try to restore
+            if has_local_changes:
+                console.print("\n[yellow]Attempting to restore stashed changes...[/yellow]")
+                subprocess.run(
+                    ["git", "stash", "pop"],
+                    cwd=install_dir,
+                    capture_output=True,
+                )
+            
+            console.print("\n[bold]To update manually:[/bold]")
+            console.print("  cd ~/kaalsec")
+            console.print("  git pull")
+            console.print("  source .venv/bin/activate")
+            console.print("  pip install -e .")
             sys.exit(1)
         
         console.print("[bold green]✓ Code updated[/bold green]\n")
