@@ -33,7 +33,6 @@ console = Console()
 @app.callback(invoke_without_command=True)
 def main(
     ctx: Context,
-    *question_words: str,
 ):
     """
     KaalSec - Ethical AI Copilot for Kali Linux
@@ -49,6 +48,32 @@ def main(
     # If a subcommand was invoked, don't do anything here
     if ctx.invoked_subcommand is not None:
         return
+    
+    # Get remaining arguments from sys.argv (only when no subcommand)
+    import sys
+    args = sys.argv[1:]  # Skip script name
+    
+    # Filter out options/flags and known subcommands
+    known_commands = ['ask', 'suggest', 'explain', 'run', 'report', 'version', 'update', 'tools', 'integrate']
+    question_words = []
+    skip_next = False
+    
+    for i, arg in enumerate(args):
+        if skip_next:
+            skip_next = False
+            continue
+        if arg.startswith('-'):
+            # Skip options and their values
+            if '=' in arg:
+                continue
+            # Check if next arg is a value (for options like --file path)
+            if i + 1 < len(args) and not args[i + 1].startswith('-'):
+                skip_next = True
+            continue
+        if arg in known_commands:
+            # Shouldn't happen if no subcommand, but be safe
+            continue
+        question_words.append(arg)
     
     # If no question provided, show help
     if not question_words:
