@@ -33,35 +33,36 @@ console = Console()
 @app.callback(invoke_without_command=True)
 def main(
     ctx: Context,
-    question: Optional[str] = typer.Argument(None, help="Your question or request (if no subcommand provided)"),
+    *question_words: str,
 ):
     """
     KaalSec - Ethical AI Copilot for Kali Linux
     
     Use without subcommands for quick questions:
-      kaalsec "give me an nmap scan of 192.168.1.1"
+      kaalsec give me an nmap scan of 192.168.1.1
     
     Or use subcommands for specific features:
-      kaalsec ask "your question"
-      kaalsec suggest "task description"
-      kaalsec explain "command"
+      kaalsec ask your question
+      kaalsec suggest task description
+      kaalsec explain command
     """
     # If a subcommand was invoked, don't do anything here
     if ctx.invoked_subcommand is not None:
         return
     
     # If no question provided, show help
-    if question is None:
+    if not question_words:
         console.print("[bold cyan]KaalSec[/bold cyan] - Ethical AI Copilot for Kali Linux\n")
         console.print("Usage examples:")
-        console.print("  [green]kaalsec[/green] \"give me an nmap scan of 192.168.1.1\"")
-        console.print("  [green]kaalsec ask[/green] \"your question\"")
-        console.print("  [green]kaalsec suggest[/green] \"task description\"")
-        console.print("  [green]kaalsec explain[/green] \"command\"")
+        console.print("  [green]kaalsec[/green] give me an nmap scan of 192.168.1.1")
+        console.print("  [green]kaalsec ask[/green] your question")
+        console.print("  [green]kaalsec suggest[/green] task description")
+        console.print("  [green]kaalsec explain[/green] command")
         console.print("\nRun [cyan]kaalsec --help[/cyan] for all commands")
         return
     
-    # Treat the argument as a question and call ask function
+    # Join all words into a single question
+    question = " ".join(question_words)
     _ask_question(question, show_banner=True)
 
 
@@ -109,16 +110,21 @@ Avoid placeholders where possible (use realistic examples)."""
 
 @app.command()
 def ask(
-    question: str = typer.Argument(..., help="Your question about security testing"),
+    *question_words: str,
     show_banner: bool = typer.Option(True, "--banner/--no-banner", help="Show legal banner"),
 ):
     """Ask KaalSec a question about ethical security testing"""
+    if not question_words:
+        console.print("[bold red]Error:[/bold red] Question is required")
+        console.print("Usage: kaalsec ask <your question>")
+        sys.exit(1)
+    question = " ".join(question_words)
     _ask_question(question, show_banner)
 
 
 @app.command()
 def explain(
-    command: Optional[str] = typer.Argument(None, help="Command to explain"),
+    *command_words: str,
     file: Optional[Path] = typer.Option(None, "-f", "--file", help="File containing command/output to explain"),
 ):
     """Explain what a command does, its flags, risks, and safer alternatives"""
@@ -127,6 +133,8 @@ def explain(
         red_team_mode=config.get("policy.red_team_mode", False),
         anonymise_ips=config.get("policy.anonymise_ips", False),
     )
+    
+    command = " ".join(command_words) if command_words else None
     
     if not command and not file:
         console.print("[bold red]Error:[/bold red] Provide either a command or --file option")
@@ -172,10 +180,16 @@ Avoid placeholders where possible (use realistic examples)."""
 
 @app.command()
 def suggest(
-    task: str = typer.Argument(..., help="Task description (e.g., 'enumerate web servers on 10.0.0.0/24')"),
+    *task_words: str,
     tool: Optional[str] = typer.Option(None, "--tool", help="Specific tool to use (e.g., nmap, nikto)"),
 ):
     """Suggest safe, accurate commands for a security testing task"""
+    if not task_words:
+        console.print("[bold red]Error:[/bold red] Task description is required")
+        console.print("Usage: kaalsec suggest <task description>")
+        sys.exit(1)
+    
+    task = " ".join(task_words)
     config = Config()
     policy = PolicyFilter(
         red_team_mode=config.get("policy.red_team_mode", False),
