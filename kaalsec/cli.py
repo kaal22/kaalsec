@@ -149,10 +149,56 @@ def run_cli():
                     _ask_question(question, show_banner=True)
                     return
         
-        # Check error message for unknown command
+        # Check error message for unknown command or unexpected arguments
         if any(phrase in error_str for phrase in ["no such command", "got unexpected extra arguments", "missing argument"]):
             args = sys.argv[1:] if len(sys.argv) > 1 else []
-            if args:
+            if args and len(args) > 1:
+                # Special handling for suggest/ask/explain commands with extra args
+                if args[0] == 'suggest':
+                    # Parse task from args manually and call _perform_suggest
+                    try:
+                        task_words = []
+                        skip_next = False
+                        tool_option = None
+                        for i, arg in enumerate(args[1:], 1):  # Skip 'suggest'
+                            if skip_next:
+                                skip_next = False
+                                continue
+                            if arg.startswith('-'):
+                                if arg == '--tool' or arg.startswith('--tool='):
+                                    if '=' in arg:
+                                        tool_option = arg.split('=', 1)[1]
+                                    elif i + 1 < len(args):
+                                        tool_option = args[i + 1]
+                                        skip_next = True
+                                    continue
+                                break
+                            task_words.append(arg)
+                        
+                        if task_words:
+                            _perform_suggest(" ".join(task_words), tool_option)
+                            return
+                    except Exception as e:
+                        # If that fails, fall through to question handling
+                        pass
+                elif args[0] == 'ask':
+                    try:
+                        from typer import Context
+                        mock_ctx = Context(None, None, None, None)
+                        ask(mock_ctx, show_banner=True)
+                        return
+                    except Exception as e:
+                        pass
+                elif args[0] == 'explain':
+                    try:
+                        from typer import Context
+                        mock_ctx = Context(None, None, None, None)
+                        explain(mock_ctx, file=None)
+                        return
+                    except Exception as e:
+                        pass
+                
+                # Otherwise treat as question
                 question_words = [arg for arg in args if not arg.startswith('-') and arg not in known_commands]
                 if question_words:
                     question = " ".join(question_words)
@@ -348,7 +394,7 @@ def suggest(
     """Suggest safe, accurate commands for a security testing task
     
     You can provide the task as multiple words without quotes:
-      kaalsec suggest a command to scan my local network
+      kaalsec suggest scan my local network
     """
     # Get all remaining arguments from sys.argv
     import sys
@@ -379,10 +425,16 @@ def suggest(
     if not task_words:
         console.print("[bold red]Error:[/bold red] Task description is required")
         console.print("Usage: kaalsec suggest <task description>")
-        console.print("Example: kaalsec suggest a command to scan my local network")
+        console.print("Example: kaalsec suggest scan my local network")
         sys.exit(1)
     
-    task = " ".join(task_words)
+    # Use tool from option if provided, otherwise from parsed args
+    final_tool = tool if tool else None
+    _perform_suggest(" ".join(task_words), final_tool)
+
+
+def _perform_suggest(task: str, tool: Optional[str] = None):
+    """Internal function to perform suggestion logic"""
     config = Config()
     policy = PolicyFilter(
         red_team_mode=config.get("policy.red_team_mode", False),
