@@ -109,7 +109,7 @@ def create_backend(config: Dict[str, Any]) -> LLMBackend:
             model=config.get("model", "gpt-4o-mini"),
             timeout=config.get("timeout", 30),
         )
-        elif provider == "ollama":
+    elif provider == "ollama":
         return OllamaBackend(
             host=config.get("host", "http://localhost:11434"),
             model=config.get("model", "qwen2.5"),
