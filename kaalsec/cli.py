@@ -105,6 +105,74 @@ def run_cli():
     args = sys.argv[1:] if len(sys.argv) > 1 else []
     known_commands = ['ask', 'suggest', 'explain', 'run', 'report', 'version', 'update', 'tools', 'integrate', '--help', '-h', 'help']
     
+    # Handle suggest/ask/explain commands with extra args BEFORE calling app()
+    # This prevents Typer from printing error messages
+    if args and len(args) > 1 and args[0] in ['suggest', 'ask', 'explain']:
+        if args[0] == 'suggest':
+            try:
+                task_words = []
+                skip_next = False
+                tool_option = None
+                for i, arg in enumerate(args[1:], 1):
+                    if skip_next:
+                        skip_next = False
+                        continue
+                    if arg.startswith('-'):
+                        if arg == '--tool' or arg.startswith('--tool='):
+                            if '=' in arg:
+                                tool_option = arg.split('=', 1)[1]
+                            elif i + 1 < len(args):
+                                tool_option = args[i + 1]
+                                skip_next = True
+                            continue
+                        break
+                    task_words.append(arg)
+                if task_words:
+                    _perform_suggest(" ".join(task_words), tool_option)
+                    return
+            except:
+                pass
+        elif args[0] == 'ask':
+            try:
+                question_words = []
+                skip_next = False
+                for i, arg in enumerate(args[1:], 1):
+                    if skip_next:
+                        skip_next = False
+                        continue
+                    if arg.startswith('-'):
+                        if arg == '--banner' or arg == '--no-banner':
+                            continue
+                        break
+                    question_words.append(arg)
+                if question_words:
+                    _ask_question(" ".join(question_words), show_banner=True)
+                    return
+            except:
+                pass
+        elif args[0] == 'explain':
+            try:
+                command_words = []
+                file_path = None
+                skip_next = False
+                for i, arg in enumerate(args[1:], 1):
+                    if skip_next:
+                        skip_next = False
+                        continue
+                    if arg.startswith('-'):
+                        if arg == '-f' or arg == '--file':
+                            if i + 1 < len(args):
+                                file_path = Path(args[i + 1])
+                                skip_next = True
+                            continue
+                        break
+                    command_words.append(arg)
+                if command_words or file_path:
+                    _perform_explain(" ".join(command_words) if command_words else None, file_path)
+                    return
+            except:
+                pass
+    
     # If first arg is not a known command and not an option, treat as question
     if args and not args[0].startswith('-') and args[0] not in known_commands:
         # This is likely a direct question
