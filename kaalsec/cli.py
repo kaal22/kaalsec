@@ -4,6 +4,7 @@ import os
 import sys
 import subprocess
 import json
+import shutil
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
@@ -373,6 +374,158 @@ def version():
     """Show KaalSec version"""
     from kaalsec import __version__
     console.print(f"[bold cyan]KaalSec[/bold cyan] version [bold]{__version__}[/bold]")
+
+
+@app.command()
+def update(
+    force: bool = typer.Option(False, "--force", "-f", help="Force update even if already up to date"),
+):
+    """Update KaalSec to the latest version from GitHub"""
+    console.print("[bold cyan]Updating KaalSec...[/bold cyan]\n")
+    
+    # Find the installation directory
+    # Try common locations
+    possible_dirs = [
+        Path.home() / "kaalsec",
+        Path(__file__).parent.parent,  # If installed in repo
+    ]
+    
+    install_dir = None
+    for dir_path in possible_dirs:
+        if (dir_path / ".git").exists():
+            install_dir = dir_path
+            break
+    
+    if not install_dir:
+        console.print("[bold red]Error:[/bold red] Could not find KaalSec installation directory.")
+        console.print("Make sure KaalSec was installed from GitHub using the install script.")
+        console.print("\nTo update manually:")
+        console.print("  cd ~/kaalsec")
+        console.print("  git pull")
+        console.print("  source .venv/bin/activate")
+        console.print("  pip install -e .")
+        sys.exit(1)
+    
+    console.print(f"[bold]Installation directory:[/bold] {install_dir}\n")
+    
+    try:
+        # Check current status
+        result = subprocess.run(
+            ["git", "fetch", "origin"],
+            cwd=install_dir,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        
+        # Check if there are updates
+        result = subprocess.run(
+            ["git", "status", "-uno"],
+            cwd=install_dir,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        
+        if "Your branch is up to date" in result.stdout and not force:
+            console.print("[bold green]✓ KaalSec is already up to date![/bold green]")
+            console.print("Use --force to reinstall anyway.")
+            return
+        
+        # Show what will be updated
+        result = subprocess.run(
+            ["git", "log", "HEAD..origin/main", "--oneline"],
+            cwd=install_dir,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        
+        if result.stdout.strip():
+            console.print("[bold]New updates available:[/bold]")
+            console.print(result.stdout)
+            console.print()
+        
+        # Pull latest changes
+        console.print("[yellow]Pulling latest changes...[/yellow]")
+        result = subprocess.run(
+            ["git", "pull", "origin", "main"],
+            cwd=install_dir,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        
+        if result.returncode != 0:
+            console.print(f"[bold red]Error:[/bold red] Failed to pull updates")
+            console.print(result.stderr)
+            sys.exit(1)
+        
+        console.print("[bold green]✓ Code updated[/bold green]\n")
+        
+        # Reinstall dependencies
+        console.print("[yellow]Updating dependencies...[/yellow]")
+        venv_python = install_dir / ".venv" / "bin" / "python"
+        
+        if not venv_python.exists():
+            console.print("[yellow]Virtual environment not found, creating...[/yellow]")
+            subprocess.run(
+                ["python3", "-m", "venv", ".venv"],
+                cwd=install_dir,
+                check=True,
+            )
+            venv_python = install_dir / ".venv" / "bin" / "python"
+        
+        # Upgrade pip
+        subprocess.run(
+            [str(venv_python), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"],
+            cwd=install_dir,
+            capture_output=True,
+        )
+        
+        # Reinstall package
+        result = subprocess.run(
+            [str(venv_python), "-m", "pip", "install", "-e", "."],
+            cwd=install_dir,
+            capture_output=True,
+            text=True,
+        )
+        
+        if result.returncode != 0:
+            console.print("[bold yellow]Warning:[/bold yellow] Some dependencies may have failed to update")
+            console.print(result.stderr)
+        else:
+            console.print("[bold green]✓ Dependencies updated[/bold green]\n")
+        
+        # Update plugins
+        console.print("[yellow]Updating plugins...[/yellow]")
+        plugins_source = install_dir / "plugins"
+        plugins_dest = Path.home() / ".kaalsec" / "plugins"
+        
+        if plugins_source.exists() and plugins_dest.exists():
+            # Copy new/updated plugins
+            for plugin_file in plugins_source.glob("*.yml"):
+                shutil.copy2(plugin_file, plugins_dest / plugin_file.name)
+            console.print("[bold green]✓ Plugins updated[/bold green]\n")
+        
+        # Show new version
+        from kaalsec import __version__
+        console.print("=" * 50)
+        console.print("[bold green]✓ KaalSec updated successfully![/bold green]")
+        console.print(f"[bold]Current version:[/bold] {__version__}")
+        console.print("=" * 50)
+        console.print("\n[bold]Note:[/bold] If you encounter any issues, restart your terminal.")
+        
+    except subprocess.TimeoutExpired:
+        console.print("[bold red]Error:[/bold red] Update timed out. Check your internet connection.")
+        sys.exit(1)
+    except FileNotFoundError:
+        console.print("[bold red]Error:[/bold red] Git not found. Please install git:")
+        console.print("  sudo apt install git")
+        sys.exit(1)
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        sys.exit(1)
 
 
 @app.command()

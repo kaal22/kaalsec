@@ -55,19 +55,53 @@ mkdir -p ~/.kaalsec/plugins
 
 # Clone repo or use current directory
 echo "[5/9] Setting up KaalSec..."
+SAFE_INSTALL_DIR="$HOME/kaalsec"
+
 if [ -f "pyproject.toml" ] && [ -d "kaalsec" ]; then
-    # We're in the repo directory already
-    INSTALL_DIR=$(pwd)
-    echo "Using current directory: $INSTALL_DIR"
+    # We're in the repo directory
+    CURRENT_DIR=$(pwd)
+    
+    # Check if we're already in the safe location
+    if [ "$CURRENT_DIR" != "$SAFE_INSTALL_DIR" ] && [ "$CURRENT_DIR" != "$(realpath $SAFE_INSTALL_DIR 2>/dev/null)" ]; then
+        echo "Repository found in: $CURRENT_DIR"
+        echo "Moving to safe installation location: $SAFE_INSTALL_DIR"
+        
+        # Remove old installation if it exists
+        if [ -d "$SAFE_INSTALL_DIR" ]; then
+            echo "Removing old installation at $SAFE_INSTALL_DIR..."
+            rm -rf "$SAFE_INSTALL_DIR"
+        fi
+        
+        # Create the safe installation directory
+        mkdir -p "$SAFE_INSTALL_DIR"
+        
+        # Copy to safe location (preserve git history)
+        echo "Copying repository to $SAFE_INSTALL_DIR..."
+        # Copy everything including hidden files (.git, etc.)
+        cp -r "$CURRENT_DIR"/. "$SAFE_INSTALL_DIR" 2>/dev/null || cp -r "$CURRENT_DIR" "$SAFE_INSTALL_DIR"
+        
+        # Remove .venv if it exists (we'll create a fresh one)
+        if [ -d "$SAFE_INSTALL_DIR/.venv" ]; then
+            rm -rf "$SAFE_INSTALL_DIR/.venv"
+        fi
+        
+        INSTALL_DIR="$SAFE_INSTALL_DIR"
+        echo "✓ Repository moved to safe location: $INSTALL_DIR"
+        echo "  You can safely delete the original folder: $CURRENT_DIR"
+    else
+        # Already in safe location
+        INSTALL_DIR="$CURRENT_DIR"
+        echo "Using installation directory: $INSTALL_DIR"
+    fi
 else
     # Clone from GitHub
-    if [ ! -d "$HOME/kaalsec" ]; then
-        git clone https://github.com/kaal22/kaalsec.git ~/kaalsec
+    if [ ! -d "$SAFE_INSTALL_DIR" ]; then
+        git clone https://github.com/kaal22/kaalsec.git "$SAFE_INSTALL_DIR"
     else
-        echo "Repo already exists, pulling latest..."
-        cd ~/kaalsec && git pull
+        echo "Installation directory already exists, pulling latest..."
+        cd "$SAFE_INSTALL_DIR" && git pull
     fi
-    INSTALL_DIR=~/kaalsec
+    INSTALL_DIR="$SAFE_INSTALL_DIR"
 fi
 
 # Create virtual environment
