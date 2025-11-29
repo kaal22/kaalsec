@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Optional
 
 import typer
+from typer import Context
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -29,17 +30,48 @@ app = typer.Typer(help="KaalSec - Ethical AI Copilot for Kali Linux")
 console = Console()
 
 
+@app.callback(invoke_without_command=True)
+def main(
+    ctx: Context,
+    question: Optional[str] = typer.Argument(None, help="Your question or request (if no subcommand provided)"),
+):
+    """
+    KaalSec - Ethical AI Copilot for Kali Linux
+    
+    Use without subcommands for quick questions:
+      kaalsec "give me an nmap scan of 192.168.1.1"
+    
+    Or use subcommands for specific features:
+      kaalsec ask "your question"
+      kaalsec suggest "task description"
+      kaalsec explain "command"
+    """
+    # If a subcommand was invoked, don't do anything here
+    if ctx.invoked_subcommand is not None:
+        return
+    
+    # If no question provided, show help
+    if question is None:
+        console.print("[bold cyan]KaalSec[/bold cyan] - Ethical AI Copilot for Kali Linux\n")
+        console.print("Usage examples:")
+        console.print("  [green]kaalsec[/green] \"give me an nmap scan of 192.168.1.1\"")
+        console.print("  [green]kaalsec ask[/green] \"your question\"")
+        console.print("  [green]kaalsec suggest[/green] \"task description\"")
+        console.print("  [green]kaalsec explain[/green] \"command\"")
+        console.print("\nRun [cyan]kaalsec --help[/cyan] for all commands")
+        return
+    
+    # Treat the argument as a question and call ask function
+    _ask_question(question, show_banner=True)
+
+
 def run_cli():
     """Entry point for CLI"""
     app()
 
 
-@app.command()
-def ask(
-    question: str = typer.Argument(..., help="Your question about security testing"),
-    show_banner: bool = typer.Option(True, "--banner/--no-banner", help="Show legal banner"),
-):
-    """Ask KaalSec a question about ethical security testing"""
+def _ask_question(question: str, show_banner: bool = True):
+    """Internal function to handle asking questions"""
     config = Config()
     policy = PolicyFilter(
         red_team_mode=config.get("policy.red_team_mode", False),
@@ -73,6 +105,15 @@ Avoid placeholders where possible (use realistic examples)."""
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
         sys.exit(1)
+
+
+@app.command()
+def ask(
+    question: str = typer.Argument(..., help="Your question about security testing"),
+    show_banner: bool = typer.Option(True, "--banner/--no-banner", help="Show legal banner"),
+):
+    """Ask KaalSec a question about ethical security testing"""
+    _ask_question(question, show_banner)
 
 
 @app.command()

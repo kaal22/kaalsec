@@ -2,6 +2,8 @@
 
 KaalSec is a CLI-first ethical security assistant built for Kali Linux. It sits next to your terminal, explains complex commands, suggests safer recon/exploitation workflows, and auto-generates documentation — all while keeping everything transparent, permission-based, and legally safe.
 
+**Quick Start:** Just ask directly - `kaalsec "give me an nmap scan of 192.168.1.1"`
+
 ## ⚠️ Legal Disclaimer
 
 KaalSec is designed for **ETHICAL security testing ONLY**:
@@ -12,8 +14,15 @@ KaalSec is designed for **ETHICAL security testing ONLY**:
 
 ## ✨ Features
 
-### 1. Ask Mode
-Get natural-language guidance using your configured LLM backend:
+### 1. Quick Questions (Simplified)
+Ask questions directly without subcommands - the fastest way to use KaalSec:
+```bash
+kaalsec "give me an nmap scan of 192.168.1.1"
+kaalsec "how do I safely scan a /24 subnet?"
+kaalsec "fix broken packages in kali"
+```
+
+**Or use the explicit ask command:**
 ```bash
 kaalsec ask "How do I safely scan a /24 subnet?"
 ```
@@ -139,6 +148,10 @@ ollama serve
 Open a **new terminal** and test KaalSec:
 
 ```bash
+# Simplified syntax (recommended)
+kaalsec "what is KaalSec?"
+
+# Or use explicit ask command
 kaalsec ask "What is KaalSec?"
 ```
 
@@ -378,8 +391,9 @@ git status
 Once installed, try these commands:
 
 ```bash
-# Ask a question
-kaalsec ask "How do I scan for open ports safely?"
+# Ask a question (simplified - no subcommand needed!)
+kaalsec "how do I scan for open ports safely?"
+kaalsec "give me an nmap scan of 192.168.1.1"
 
 # List available Kali tools
 kaalsec tools --installed
@@ -391,16 +405,26 @@ kaalsec suggest "enumerate web servers on 10.0.0.0/24"
 kaalsec explain "nmap -sCV -p 22,80,443 10.0.0.5"
 ```
 
+**Note:** You can use `kaalsec "your question"` directly, or use explicit subcommands like `kaalsec ask`, `kaalsec suggest`, etc.
+
 **Note:** KaalSec uses Ollama with Qwen2.5 (local LLM) by default. No API keys required! Everything runs locally and offline after the initial setup.
 
 ## 📖 Usage Examples
 
-### Ask a Question
+### Quick Questions (Simplified Syntax)
+The easiest way - just ask directly:
+```bash
+kaalsec "give me an nmap scan of 192.168.1.1"
+kaalsec "how do I scan a subnet safely?"
+kaalsec "fix 'E: Unable to correct problems, you have held broken packages' in kali"
+kaalsec "write a bash script to run nmap then gobuster on a target domain"
+kaalsec "show steps to put wlan0 into monitor mode in a vm and capture handshakes"
+```
+
+**Or use the explicit ask command:**
 ```bash
 kaalsec ask "How do I scan a subnet safely?"
-kaalsec ask "fix 'E: Unable to correct problems, you have held broken packages' in kali"
-kaalsec ask "write a bash script to run nmap then gobuster on a target domain"
-kaalsec ask "show steps to put wlan0 into monitor mode in a vm and capture handshakes"
+kaalsec ask "fix broken packages in kali"
 ```
 
 ### Explain a Command

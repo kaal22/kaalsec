@@ -340,12 +340,12 @@ echo "  ✓ Performance tuning: Added to $SHELL_CONFIG"
 echo
 echo "Quick Start:"
 if command -v kaalsec &> /dev/null; then
-    echo "  kaalsec ask \"How do I scan a subnet safely?\""
-    echo "  kaalsec fix 'E: Unable to correct problems, you have held broken packages'"
-    echo "  kaalsec write a bash script to run nmap then gobuster on a target domain"
+    echo "  kaalsec \"give me an nmap scan of 192.168.1.1\""
+    echo "  kaalsec \"how do I scan a subnet safely?\""
+    echo "  kaalsec \"fix broken packages in kali\""
 else
-    echo "  source $INSTALL_DIR/.venv/bin/activate"
-    echo "  kaalsec ask \"How do I scan a subnet safely?\""
+    echo "  source $SHELL_CONFIG"
+    echo "  kaalsec \"give me an nmap scan of 192.168.1.1\""
 fi
 echo
 echo "Important Notes:"
@@ -357,10 +357,10 @@ echo "  • List available Kali tools: kaalsec tools"
 echo ""
 echo "To use KaalSec now (without restarting terminal):"
 if command -v kaalsec &> /dev/null; then
-    echo "  kaalsec ask \"test question\""
+    echo "  kaalsec \"give me an nmap scan of 192.168.1.1\""
 else
     echo "  source $SHELL_CONFIG"
-    echo "  kaalsec ask \"test question\""
+    echo "  kaalsec \"give me an nmap scan of 192.168.1.1\""
 fi
 echo ""
 echo "Shell Configuration:"
