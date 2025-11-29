@@ -41,7 +41,7 @@ class Config:
             "backend": {
                 "provider": "ollama",
                 "model": "qwen2.5",
-                "timeout_seconds": 60,
+                "timeout_seconds": 120,  # Increased for slower systems/VMs
             },
             "backend.openai": {
                 "api_key_env": "OPENAI_API_KEY",
@@ -88,7 +88,7 @@ class Config:
                 "provider": "ollama",
                 "host": self.get("backend.ollama.host", "http://localhost:11434"),
                 "model": self.get("backend.ollama.model", "qwen2.5"),
-                "timeout": self.get("backend.timeout_seconds", 60),
+                "timeout": self.get("backend.timeout_seconds", 120),  # Increased for slower systems/VMs
             }
         else:
             raise ValueError(f"Unknown backend provider: {provider}")

@@ -190,7 +190,7 @@ log_level = "info"
 [backend]
 provider = "ollama"  # Local LLM - no API key needed!
 model = "qwen2.5"
-timeout_seconds = 60
+timeout_seconds = 120  # Increased for slower systems/VMs
 
 [backend.openai]
 api_key_env = "OPENAI_API_KEY"

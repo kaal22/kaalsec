@@ -64,7 +64,7 @@ class OpenAIBackend(LLMBackend):
 class OllamaBackend(LLMBackend):
     """Ollama local backend"""
     
-    def __init__(self, host: str = "http://localhost:11434", model: str = "qwen2.5", timeout: int = 60):
+    def __init__(self, host: str = "http://localhost:11434", model: str = "qwen2.5", timeout: int = 120):
         self.host = host.rstrip("/")
         self.model = model
         self.timeout = timeout
@@ -109,11 +109,11 @@ def create_backend(config: Dict[str, Any]) -> LLMBackend:
             model=config.get("model", "gpt-4o-mini"),
             timeout=config.get("timeout", 30),
         )
-    elif provider == "ollama":
+        elif provider == "ollama":
         return OllamaBackend(
             host=config.get("host", "http://localhost:11434"),
             model=config.get("model", "qwen2.5"),
-            timeout=config.get("timeout", 60),  # Longer timeout for local models
+            timeout=config.get("timeout", 120),  # Longer timeout for slower systems/VMs
         )
     else:
         raise ValueError(f"Unknown backend provider: {provider}")
