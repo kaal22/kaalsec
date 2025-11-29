@@ -133,21 +133,9 @@ def run_cli():
     except typer.Exit:
         # Typer exit (normal exit, e.g., --help)
         raise
-    except (UsageError, BadParameter, SystemExit) as e:
-        # Check if it's an unknown command error
+    except (UsageError, BadParameter) as e:
+        # Click/Typer usage errors
         error_str = str(e).lower() if hasattr(e, '__str__') else ''
-        error_code = getattr(e, 'exit_code', None)
-        
-        # SystemExit with code 2 usually means usage error
-        if isinstance(e, SystemExit) and error_code == 2:
-            # Try to treat as question
-            args = sys.argv[1:] if len(sys.argv) > 1 else []
-            if args and args[0] not in known_commands and not args[0].startswith('-'):
-                question_words = [arg for arg in args if not arg.startswith('-')]
-                if question_words:
-                    question = " ".join(question_words)
-                    _ask_question(question, show_banner=True)
-                    return
         
         # Check error message for unknown command or unexpected arguments
         if any(phrase in error_str for phrase in ["no such command", "got unexpected extra arguments", "missing argument"]):
@@ -155,12 +143,11 @@ def run_cli():
             if args and len(args) > 1:
                 # Special handling for suggest/ask/explain commands with extra args
                 if args[0] == 'suggest':
-                    # Parse task from args manually and call _perform_suggest
                     try:
                         task_words = []
                         skip_next = False
                         tool_option = None
-                        for i, arg in enumerate(args[1:], 1):  # Skip 'suggest'
+                        for i, arg in enumerate(args[1:], 1):
                             if skip_next:
                                 skip_next = False
                                 continue
@@ -174,40 +161,25 @@ def run_cli():
                                     continue
                                 break
                             task_words.append(arg)
-                        
                         if task_words:
                             _perform_suggest(" ".join(task_words), tool_option)
                             return
-                    except Exception as e:
-                        # If that fails, fall through to question handling
+                    except:
                         pass
                 elif args[0] == 'ask':
-                    # Parse question from args manually and call _ask_question
                     try:
-                        question_words = []
-                        skip_next = False
-                        for i, arg in enumerate(args[1:], 1):  # Skip 'ask'
-                            if skip_next:
-                                skip_next = False
-                                continue
-                            if arg.startswith('-'):
-                                if arg == '--banner' or arg == '--no-banner':
-                                    continue
-                                break
-                            question_words.append(arg)
-                        
+                        question_words = [arg for arg in args[1:] if not arg.startswith('-')]
                         if question_words:
                             _ask_question(" ".join(question_words), show_banner=True)
                             return
-                    except Exception as e:
+                    except:
                         pass
                 elif args[0] == 'explain':
-                    # Parse command from args manually and call explain logic
                     try:
                         command_words = []
                         file_path = None
                         skip_next = False
-                        for i, arg in enumerate(args[1:], 1):  # Skip 'explain'
+                        for i, arg in enumerate(args[1:], 1):
                             if skip_next:
                                 skip_next = False
                                 continue
@@ -219,28 +191,10 @@ def run_cli():
                                     continue
                                 break
                             command_words.append(arg)
-                        
                         if command_words or file_path:
-                            # Call explain logic directly
                             _perform_explain(" ".join(command_words) if command_words else None, file_path)
                             return
-                    except Exception as e:
-                        pass
-                elif args[0] == 'ask':
-                    try:
-                        from typer import Context
-                        mock_ctx = Context(None, None, None, None)
-                        ask(mock_ctx, show_banner=True)
-                        return
-                    except Exception as e:
-                        pass
-                elif args[0] == 'explain':
-                    try:
-                        from typer import Context
-                        mock_ctx = Context(None, None, None, None)
-                        explain(mock_ctx, file=None)
-                        return
-                    except Exception as e:
+                    except:
                         pass
                 
                 # Otherwise treat as question
@@ -249,8 +203,95 @@ def run_cli():
                     question = " ".join(question_words)
                     _ask_question(question, show_banner=True)
                     return
-        
         # Re-raise if we can't handle it
+        raise
+    except SystemExit as e:
+        # SystemExit with code 2 usually means usage error from Typer/Click
+        # Also handle None (which might be set for usage errors in some cases)
+        error_code = getattr(e, 'code', None) or getattr(e, 'exit_code', None)
+        
+        # Handle usage errors (code 2 or None) - this includes "got unexpected extra arguments"
+        # When Typer/Click raises SystemExit for usage errors, it's usually code 2
+        if error_code == 2 or error_code is None:
+            # Check for suggest/ask/explain commands first
+            args = sys.argv[1:] if len(sys.argv) > 1 else []
+            if args and len(args) > 1:
+                if args[0] == 'suggest':
+                    try:
+                        task_words = []
+                        skip_next = False
+                        tool_option = None
+                        for i, arg in enumerate(args[1:], 1):
+                            if skip_next:
+                                skip_next = False
+                                continue
+                            if arg.startswith('-'):
+                                if arg == '--tool' or arg.startswith('--tool='):
+                                    if '=' in arg:
+                                        tool_option = arg.split('=', 1)[1]
+                                    elif i + 1 < len(args):
+                                        tool_option = args[i + 1]
+                                        skip_next = True
+                                    continue
+                                break
+                            task_words.append(arg)
+                        if task_words:
+                            _perform_suggest(" ".join(task_words), tool_option)
+                            return
+                    except:
+                        pass
+                elif args[0] == 'ask':
+                    try:
+                        question_words = [arg for arg in args[1:] if not arg.startswith('-')]
+                        if question_words:
+                            _ask_question(" ".join(question_words), show_banner=True)
+                            return
+                    except:
+                        pass
+                elif args[0] == 'explain':
+                    try:
+                        command_words = []
+                        file_path = None
+                        skip_next = False
+                        for i, arg in enumerate(args[1:], 1):
+                            if skip_next:
+                                skip_next = False
+                                continue
+                            if arg.startswith('-'):
+                                if arg == '-f' or arg == '--file':
+                                    if i + 1 < len(args):
+                                        file_path = Path(args[i + 1])
+                                        skip_next = True
+                                    continue
+                                break
+                            command_words.append(arg)
+                        if command_words or file_path:
+                            _perform_explain(" ".join(command_words) if command_words else None, file_path)
+                            return
+                    except:
+                        pass
+            
+            # Otherwise try to treat as question
+            if args and args[0] not in known_commands and not args[0].startswith('-'):
+                question_words = [arg for arg in args if not arg.startswith('-')]
+                if question_words:
+                    question = " ".join(question_words)
+                    _ask_question(question, show_banner=True)
+                    return
+        
+        # For other SystemExit codes (like --help which exits with 0), re-raise
+        # Only re-raise if it's not a usage error (code 2 or None)
+        if error_code not in (2, None):
+            raise
+    except Exception as e:
+        # Last resort - if any other exception and we have args, try as question
+        args = sys.argv[1:] if len(sys.argv) > 1 else []
+        if args and args[0] not in known_commands and not args[0].startswith('-'):
+            question_words = [arg for arg in args if not arg.startswith('-')]
+            if question_words:
+                question = " ".join(question_words)
+                _ask_question(question, show_banner=True)
+                return
         raise
     except Exception as e:
         # Last resort - if any other exception and we have args, try as question
