@@ -98,45 +98,78 @@ def main(
 def run_cli():
     """Entry point for CLI"""
     import sys
-    from click.exceptions import UsageError
+    from click.exceptions import UsageError, BadParameter
+    import click
     
+    # Check if this looks like a direct question (not a known command)
+    args = sys.argv[1:] if len(sys.argv) > 1 else []
+    known_commands = ['ask', 'suggest', 'explain', 'run', 'report', 'version', 'update', 'tools', 'integrate', '--help', '-h', 'help']
+    
+    # If first arg is not a known command and not an option, treat as question
+    if args and not args[0].startswith('-') and args[0] not in known_commands:
+        # This is likely a direct question
+        question_words = []
+        skip_next = False
+        for i, arg in enumerate(args):
+            if skip_next:
+                skip_next = False
+                continue
+            if arg.startswith('-'):
+                if '=' in arg:
+                    continue
+                if i + 1 < len(args) and not args[i + 1].startswith('-'):
+                    skip_next = True
+                continue
+            question_words.append(arg)
+        
+        if question_words:
+            question = " ".join(question_words)
+            _ask_question(question, show_banner=True)
+            return
+    
+    # Otherwise, try normal Typer command handling
     try:
         app()
     except typer.Exit:
         # Typer exit (normal exit, e.g., --help)
         raise
-    except (UsageError, typer.BadParameter) as e:
-        # If Typer/Click raises an error about unknown command or bad arguments,
-        # try to handle the entire command line as a question
-        error_str = str(e).lower()
-        if any(phrase in error_str for phrase in ["no such command", "got unexpected extra arguments", "missing argument"]):
-            # Try to treat the entire command line as a question
-            args = sys.argv[1:]
-            if args:
-                # Filter out options and help flags
-                question_words = []
-                skip_next = False
-                for i, arg in enumerate(args):
-                    if skip_next:
-                        skip_next = False
-                        continue
-                    if arg in ['--help', '-h', 'help']:
-                        # Show help instead
-                        app()
-                        return
-                    if arg.startswith('-'):
-                        if '=' in arg:
-                            continue
-                        if i + 1 < len(args) and not args[i + 1].startswith('-'):
-                            skip_next = True
-                        continue
-                    question_words.append(arg)
-                
+    except (UsageError, BadParameter, SystemExit) as e:
+        # Check if it's an unknown command error
+        error_str = str(e).lower() if hasattr(e, '__str__') else ''
+        error_code = getattr(e, 'exit_code', None)
+        
+        # SystemExit with code 2 usually means usage error
+        if isinstance(e, SystemExit) and error_code == 2:
+            # Try to treat as question
+            args = sys.argv[1:] if len(sys.argv) > 1 else []
+            if args and args[0] not in known_commands and not args[0].startswith('-'):
+                question_words = [arg for arg in args if not arg.startswith('-')]
                 if question_words:
                     question = " ".join(question_words)
                     _ask_question(question, show_banner=True)
                     return
+        
+        # Check error message for unknown command
+        if any(phrase in error_str for phrase in ["no such command", "got unexpected extra arguments", "missing argument"]):
+            args = sys.argv[1:] if len(sys.argv) > 1 else []
+            if args:
+                question_words = [arg for arg in args if not arg.startswith('-') and arg not in known_commands]
+                if question_words:
+                    question = " ".join(question_words)
+                    _ask_question(question, show_banner=True)
+                    return
+        
         # Re-raise if we can't handle it
+        raise
+    except Exception as e:
+        # Last resort - if any other exception and we have args, try as question
+        args = sys.argv[1:] if len(sys.argv) > 1 else []
+        if args and args[0] not in known_commands and not args[0].startswith('-'):
+            question_words = [arg for arg in args if not arg.startswith('-')]
+            if question_words:
+                question = " ".join(question_words)
+                _ask_question(question, show_banner=True)
+                return
         raise
 
 
