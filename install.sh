@@ -1,0 +1,263 @@
+#!/bin/bash
+
+echo "=========================================="
+echo "     Installing KaalSec — Ethical AI       "
+echo "=========================================="
+sleep 1
+
+# Ensure system is up to date
+echo "[1/9] Updating apt packages..."
+sudo apt update -y
+
+# Install Python + pip
+echo "[2/9] Installing Python dependencies..."
+sudo apt install -y python3 python3-pip python3-venv git curl
+
+# Install Ollama
+echo "[3/9] Installing Ollama..."
+if ! command -v ollama &> /dev/null; then
+    echo "Downloading and installing Ollama..."
+    curl -fsSL https://ollama.com/install.sh | sh
+    echo "Ollama installed successfully!"
+else
+    echo "Ollama is already installed."
+fi
+
+# Start Ollama service and pull default model
+echo "[3.5/9] Setting up Ollama model..."
+if ! pgrep -x "ollama" > /dev/null; then
+    echo "Starting Ollama service..."
+    ollama serve &
+    sleep 3
+fi
+
+# Pull qwen2.5 model if not already present
+echo "Pulling qwen2.5 model (this may take a while)..."
+ollama pull qwen2.5 || echo "Warning: Could not pull model. You can run 'ollama pull qwen2.5' manually later."
+
+# Performance tuning for VMs (optional)
+echo "[3.6/9] Setting up performance tuning (optional)..."
+if ! grep -q "OLLAMA_NUM_THREADS" ~/.bashrc 2>/dev/null; then
+    echo "" >> ~/.bashrc
+    echo "# KaalSec performance tuning for Ollama" >> ~/.bashrc
+    echo "export OLLAMA_NUM_THREADS=\$(nproc)" >> ~/.bashrc
+    echo "export OLLAMA_MAX_LOADED_MODELS=1" >> ~/.bashrc
+    echo "Performance tuning added to ~/.bashrc (reload with: source ~/.bashrc)"
+else
+    echo "Performance tuning already configured in ~/.bashrc"
+fi
+
+# Create install directory
+echo "[4/9] Creating ~/.kaalsec directory..."
+mkdir -p ~/.kaalsec
+mkdir -p ~/.kaalsec/logs
+mkdir -p ~/.kaalsec/plugins
+
+# Clone repo or use current directory
+echo "[5/9] Setting up KaalSec..."
+if [ -f "pyproject.toml" ] && [ -d "kaalsec" ]; then
+    # We're in the repo directory already
+    INSTALL_DIR=$(pwd)
+    echo "Using current directory: $INSTALL_DIR"
+else
+    # Clone from GitHub
+    if [ ! -d "$HOME/kaalsec" ]; then
+        git clone https://github.com/kaal22/kaalsec.git ~/kaalsec
+    else
+        echo "Repo already exists, pulling latest..."
+        cd ~/kaalsec && git pull
+    fi
+    INSTALL_DIR=~/kaalsec
+fi
+
+# Create virtual environment
+echo "[6/9] Creating Python virtual environment..."
+cd "$INSTALL_DIR"
+python3 -m venv .venv
+
+# Activate venv + upgrade pip and setuptools
+echo "[7/9] Installing Python dependencies..."
+source .venv/bin/activate
+
+# Upgrade pip, setuptools, and wheel first
+echo "Upgrading pip, setuptools, and wheel..."
+pip install --upgrade pip setuptools wheel
+
+# Install all project dependencies
+echo "Installing KaalSec and all dependencies..."
+pip install -e .
+
+# Verify installation
+echo "Verifying installation..."
+if ! python3 -c "import kaalsec" 2>/dev/null; then
+    echo "Warning: KaalSec module not found. Installation may have failed."
+else
+    echo "✓ KaalSec Python package installed successfully"
+fi
+
+# Copy plugins to user directory
+echo "[7.5/9] Copying plugins to ~/.kaalsec/plugins/..."
+if [ -d "$INSTALL_DIR/plugins" ]; then
+    # Copy all plugin files
+    cp -r "$INSTALL_DIR/plugins"/* ~/.kaalsec/plugins/ 2>/dev/null || true
+    PLUGIN_COUNT=$(ls -1 ~/.kaalsec/plugins/*.yml 2>/dev/null | wc -l)
+    echo "  ✓ Plugin files copied: $PLUGIN_COUNT"
+else
+    echo "Warning: Plugins directory not found at $INSTALL_DIR/plugins"
+fi
+
+# Create config file if missing
+echo "[8/9] Creating default config file..."
+CONFIG_PATH=~/.kaalsec/config.toml
+
+if [ ! -f "$CONFIG_PATH" ]; then
+cat <<EOF > $CONFIG_PATH
+[core]
+legal_banner = true
+history_lines = 25
+log_level = "info"
+
+[backend]
+provider = "ollama"  # Local LLM - no API key needed!
+model = "qwen2.5"
+timeout_seconds = 60
+
+[backend.openai]
+api_key_env = "OPENAI_API_KEY"
+
+[backend.ollama]
+host = "http://localhost:11434"
+model = "qwen2.5"
+
+[policy]
+red_team_mode = false
+anonymise_ips = false
+EOF
+    echo "✓ Config file created at $CONFIG_PATH"
+else
+    echo "Config already exists at $CONFIG_PATH, skipping."
+fi
+
+# Make kaalsec command available globally
+echo "[8.5/9] Setting up global kaalsec command..."
+# Check if kaalsec is already in PATH
+if command -v kaalsec &> /dev/null; then
+    echo "✓ kaalsec command already available"
+else
+    # Try to create symlink in /usr/local/bin (requires sudo)
+    VENV_BIN="$INSTALL_DIR/.venv/bin/kaalsec"
+    if [ -f "$VENV_BIN" ]; then
+        if sudo ln -sf "$VENV_BIN" /usr/local/bin/kaalsec 2>/dev/null; then
+            echo "✓ Global kaalsec command created at /usr/local/bin/kaalsec"
+        else
+            echo "Note: Could not create global symlink (may need sudo)."
+            echo "You can activate the venv and run: source $INSTALL_DIR/.venv/bin/activate"
+            echo "Or add to your ~/.bashrc: alias kaalsec='$VENV_BIN'"
+        fi
+    else
+        echo "Warning: kaalsec binary not found at $VENV_BIN"
+    fi
+fi
+
+# Offer shell integration
+echo "[8.6/9] Setting up shell integration (optional)..."
+echo "To enable terminal integration (access to last command), run after installation:"
+echo "  kaalsec integrate"
+
+# Verify all dependencies are installed
+echo "[8.7/9] Verifying all dependencies..."
+source "$INSTALL_DIR/.venv/bin/activate"
+MISSING_DEPS=0
+
+# Check each dependency with correct import name
+check_dep() {
+    local pkg=$1
+    local import=$2
+    if python3 -c "import $import" 2>/dev/null; then
+        echo "  ✓ $pkg"
+        return 0
+    else
+        echo "  ✗ Missing: $pkg"
+        return 1
+    fi
+}
+
+check_dep "typer" "typer" || MISSING_DEPS=1
+check_dep "pyyaml" "yaml" || MISSING_DEPS=1
+check_dep "toml" "toml" || MISSING_DEPS=1
+check_dep "requests" "requests" || MISSING_DEPS=1
+check_dep "rich" "rich" || MISSING_DEPS=1
+
+if [ $MISSING_DEPS -eq 0 ]; then
+    echo "✓ All dependencies verified"
+else
+    echo "Warning: Some dependencies may be missing. Try: pip install -e ."
+fi
+
+# Final verification
+echo "[9/9] Final verification..."
+echo "=========================================="
+echo "Installation Summary:"
+echo "  ✓ KaalSec directory: $INSTALL_DIR"
+echo "  ✓ Config location: ~/.kaalsec/config.toml"
+echo "  ✓ Plugins location: ~/.kaalsec/plugins/"
+echo "  ✓ Logs location: ~/.kaalsec/logs/"
+echo "  ✓ Virtual environment: $INSTALL_DIR/.venv"
+
+# Test kaalsec command
+if command -v kaalsec &> /dev/null; then
+    echo "  ✓ kaalsec command: $(which kaalsec)"
+    # Test if command actually works
+    if kaalsec version &>/dev/null; then
+        echo "  ✓ kaalsec command verified working"
+    else
+        echo "  ⚠ kaalsec command found but may not be working correctly"
+    fi
+else
+    # Test using venv path directly
+    VENV_KAALSEC="$INSTALL_DIR/.venv/bin/kaalsec"
+    if [ -f "$VENV_KAALSEC" ]; then
+        echo "  ✓ kaalsec binary: $VENV_KAALSEC"
+        if source "$INSTALL_DIR/.venv/bin/activate" && kaalsec version &>/dev/null; then
+            echo "  ✓ kaalsec command verified working (in venv)"
+        fi
+    else
+        echo "  ⚠ kaalsec command: Not found"
+    fi
+    echo "     To use: source $INSTALL_DIR/.venv/bin/activate"
+    echo "     Or add alias to ~/.bashrc: alias kaalsec='$VENV_KAALSEC'"
+fi
+
+# Verify file locations
+echo ""
+echo "File Locations Verification:"
+[ -f ~/.kaalsec/config.toml ] && echo "  ✓ Config file exists" || echo "  ✗ Config file missing"
+[ -d ~/.kaalsec/plugins ] && echo "  ✓ Plugins directory exists" || echo "  ✗ Plugins directory missing"
+[ -d ~/.kaalsec/logs ] && echo "  ✓ Logs directory exists" || echo "  ✗ Logs directory missing"
+[ -d "$INSTALL_DIR/.venv" ] && echo "  ✓ Virtual environment exists" || echo "  ✗ Virtual environment missing"
+
+echo "=========================================="
+echo "✔ KaalSec Installed Successfully!"
+echo
+echo "Ollama Configuration:"
+echo "  ✓ Default model: qwen2.5"
+echo "  ✓ Performance tuning: Added to ~/.bashrc"
+echo
+echo "Quick Start:"
+if command -v kaalsec &> /dev/null; then
+    echo "  kaalsec ask \"How do I scan a subnet safely?\""
+    echo "  kaalsec fix 'E: Unable to correct problems, you have held broken packages'"
+    echo "  kaalsec write a bash script to run nmap then gobuster on a target domain"
+else
+    echo "  source $INSTALL_DIR/.venv/bin/activate"
+    echo "  kaalsec ask \"How do I scan a subnet safely?\""
+fi
+echo
+echo "Important Notes:"
+echo "  • Make sure Ollama is running: ollama serve"
+echo "  • To use different model: ollama pull <model> && nano ~/.kaalsec/config.toml"
+echo "  • Reload shell config: source ~/.bashrc (for performance tuning)"
+echo "  • Enable terminal integration: kaalsec integrate"
+echo "  • List available Kali tools: kaalsec tools"
+echo "=========================================="
+

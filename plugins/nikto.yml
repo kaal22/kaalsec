@@ -1,0 +1,36 @@
+tool: nikto
+description: "Web server scanner - identifies web server vulnerabilities"
+
+categories:
+  - name: "Basic Scans"
+    examples:
+      - cmd: "nikto -h http://target.com"
+        desc: "Basic scan of web server"
+      - cmd: "nikto -h https://target.com"
+        desc: "Scan HTTPS server"
+      - cmd: "nikto -h http://target.com -p 8080"
+        desc: "Scan non-standard port"
+  
+  - name: "Advanced Scans"
+    examples:
+      - cmd: "nikto -h http://target.com -Tuning 1,2,3"
+        desc: "Scan with specific tuning options"
+      - cmd: "nikto -h http://target.com -Format xml -o report.xml"
+        desc: "Output to XML file"
+      - cmd: "nikto -h http://target.com -evasion 1"
+        desc: "Use evasion technique 1"
+  
+  - name: "Multiple Targets"
+    examples:
+      - cmd: "nikto -h http://target1.com -h http://target2.com"
+        desc: "Scan multiple hosts"
+      - cmd: "nikto -h http://target.com -Cgidirs all"
+        desc: "Scan all CGI directories"
+
+failure_cases:
+  - "Connection refused: Check if web server is running"
+  - "SSL errors: Use -nossl flag or fix certificate"
+  - "Timeout: Server may be slow or blocking"
+
+docs: "https://cirt.net/Nikto2"
+

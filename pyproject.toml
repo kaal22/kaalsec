@@ -1,0 +1,25 @@
+[project]
+name = "kaalsec"
+version = "0.1.0"
+description = "Ethical AI Copilot for Kali Linux"
+authors = [{ name = "Andrew (Kaal)" }]
+requires-python = ">=3.11"
+dependencies = [
+    "typer>=0.9.0",
+    "pyyaml>=6.0",
+    "toml>=0.10.2",
+    "requests>=2.31.0",
+    "rich>=13.0.0",
+]
+
+[project.scripts]
+kaalsec = "kaalsec.cli:run_cli"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["kaalsec*"]
+

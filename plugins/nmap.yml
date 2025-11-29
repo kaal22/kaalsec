@@ -1,0 +1,47 @@
+tool: nmap
+description: "Network mapper - port scanning and service detection"
+
+categories:
+  - name: "Basic Scans"
+    examples:
+      - cmd: "nmap -sV <target>"
+        desc: "Version detection scan"
+      - cmd: "nmap -sC -sV <target>"
+        desc: "Default scripts + version detection"
+      - cmd: "nmap -p- <target>"
+        desc: "Scan all 65535 ports"
+  
+  - name: "Stealth Scans"
+    examples:
+      - cmd: "nmap -sS <target>"
+        desc: "SYN scan (requires root)"
+      - cmd: "nmap -sT <target>"
+        desc: "TCP connect scan (no root needed)"
+      - cmd: "nmap -sN <target>"
+        desc: "Null scan (requires root)"
+  
+  - name: "Service Detection"
+    examples:
+      - cmd: "nmap -sV -p 22,80,443 <target>"
+        desc: "Version detection on specific ports"
+      - cmd: "nmap -sC -sV -p 80,443 <target>"
+        desc: "Scripts + version on web ports"
+      - cmd: "nmap --script vuln <target>"
+        desc: "Vulnerability detection scripts"
+  
+  - name: "Network Scans"
+    examples:
+      - cmd: "nmap -sn 10.0.0.0/24"
+        desc: "Ping sweep (host discovery only)"
+      - cmd: "nmap -sV 10.0.0.0/24"
+        desc: "Version scan on subnet"
+      - cmd: "nmap -iL targets.txt"
+        desc: "Scan targets from file"
+
+failure_cases:
+  - "Permission denied: Use sudo for SYN scans (-sS)"
+  - "No targets specified: Provide IP or hostname"
+  - "Timeout: Check network connectivity"
+
+docs: "https://nmap.org/book/man.html"
+
